@@ -30,6 +30,13 @@ function getresponse () {
   var b = document.getElementById('book').value;
   var c = document.getElementById('chapter').value;
   var v = parseInt(document.getElementById('verse').value);
+  var r = document.getElementById('r').value;
+  var s = document.querySelector('input[name="strongs"]:checked').value;
+  var vtext = "";
+  
+  if(r === undefined || r < 1){
+		r = 1;
+  }
 
   // TODO: add code to select a version of the Bible based on user input
   // (only KJV and WEB versions are available with XML files)
@@ -43,7 +50,9 @@ function getresponse () {
 									+ bookInfo;
   try {
     document.all.responseArea.innerHTML = " ";
-    vtext = getVerse(b,c,v);
+	for(i=0; i < r; i++){
+		vtext += getVerse(b,c,v,s,i) + "<br>";
+	}
 	document.all.responseArea.innerHTML += "<p>" + vtext + "</p>";
   }
   catch(error) {
@@ -56,27 +65,27 @@ function getresponse () {
   } 
 } // end getResponse
 
-function getVerse(book,chapter,verse) {
+function getVerse(book,chapter,verse,s,i) {
   var verseOutput = xmlDoc.getElementsByTagName("book")[0].getAttribute("name"); 
   var c = xmlDoc.getElementsByTagName("chapter")[chapter-1];
   if (c==null)
 	throw "no chapter";
   verseOutput += " ";
   verseOutput += c.getAttribute("number"); 
-  var v = c.getElementsByTagName("verse")[verse-1]
+  var v = c.getElementsByTagName("verse")[verse-1+i];
   if (v==null)
 	throw "no verse";
   verseOutput += ":";
   verseOutput += v.getAttribute("number");
   verseOutput += " ";
   for (j=0; j < v.childNodes.length; j++) {
-	var nodeStr = getNodeString(v.childNodes[j]);
+	var nodeStr = getNodeString(v.childNodes[j], s);
 	verseOutput += nodeStr;
   }
   return(verseOutput);
 } // end getVerse
 
-function getNodeString(node) {
+function getNodeString(node, s) {
 	var result = "";
 	if (node.nodeType == 3) { // type 3: text node
 		result += node.nodeValue;
@@ -106,19 +115,22 @@ function getNodeString(node) {
 		   // When the attribute exists, add the strong number to the HTML result
 		   // as the contents of a <sub> tag, which will display it as a subscript
 		   // after the word.
-		   var nodesubstr = "";
 		   
-		   if(node.hasAttribute("hebrew")){
-				nodesubstr += node.getAttribute('hebrew');
-				result += "<sub>" + nodesubstr + "</sub>";
-		   }
-		   else if(node.hasAttribute("greek")){
-				nodesubstr += node.getAttribute('greek');
-				result += "<sub>" + nodesubstr + "</sub>";
-		   }
-		   else if(node.hasAttribute("number")){
-				nodesubstr += node.getAttribute('number');
-				result += "<sub>" + nodesubstr + "</sub>";
+		   if(s === "strongsy"){
+			   var nodesubstr = "";
+			   
+			   if(node.hasAttribute("hebrew")){
+					nodesubstr += node.getAttribute('hebrew');
+					result += "<sub>" + nodesubstr + "</sub>";
+			   }
+			   else if(node.hasAttribute("greek")){
+					nodesubstr += node.getAttribute('greek');
+					result += "<sub>" + nodesubstr + "</sub>";
+			   }
+			   else if(node.hasAttribute("number")){
+					nodesubstr += node.getAttribute('number');
+					result += "<sub>" + nodesubstr + "</sub>";
+			   }
 		   }
 
 	   }
@@ -146,14 +158,26 @@ function getNodeString(node) {
 <TD ALIGN=LEFT VALIGN=TOP><INPUT NAME="verse" TYPE="text" MAXLENGTH=3 id=verse></TD>
 </TR>
 <TR>
+<TD ALIGN=RIGHT VALIGN=TOP>Number of Verses</TD>
+<TD ALIGN=LEFT VALIGN=TOP><INPUT NAME="r" TYPE="text" MAXLENGTH=3 id=r></TD>
+</TR>
+<TR>
 <TD ALIGN=RIGHT VALIGN=TOP>Bible:</TD>
 <TD ALIGN=LEFT VALIGN=TOP>
-<INPUT NAME="bible" TYPE="radio" MAXLENGTH=3 id="kjv" VALUE="kjv">
+<INPUT NAME="bible" TYPE="radio" id="kjv" VALUE="kjv">
 <label for="kjv">KJV</label>
-<INPUT NAME="bible" TYPE="radio" MAXLENGTH=3 id="web" VALUE="web" checked>
+<INPUT NAME="bible" TYPE="radio" id="web" VALUE="web" checked>
 <label for="web">WEB</label>
 </TD>
-
+</TR>
+<TR>
+<TD ALIGN=RIGHT VALIGN=TOP>Show Strongs Lexicon:</TD>
+<TD ALIGN=LEFT VALIGN=TOP>
+<INPUT NAME="strongs" TYPE="radio" id="strongsy" VALUE="strongsy" checked>
+<label for="strongsy">Yes</label>
+<INPUT NAME="strongs" TYPE="radio" id="strongsn" VALUE="strongsn">
+<label for="strongsn">No</label>
+</TD>
 </TR>
 </table>
 <p>
