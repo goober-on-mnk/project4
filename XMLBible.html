@@ -8,6 +8,7 @@
   PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
+<!--<link rel="stylesheet" href="XMLBibleStyle.css">-->
 <title>XML Bible Demo - MVNU</title>
 <script type="text/javascript">
 function setup() {
@@ -24,12 +25,21 @@ function setup() {
   biblePath = "/class/csc3004/XMLBible/"
 }
 
+var b;
+var c;
+var v;
+var resetCounter = 0;
+
 function getresponse () {
+
+  document.all.responseArea.innerHTML = " ";
+  document.all.referenceArea.innerHTML = " ";
+
   // read input values from user
   var bible = document.querySelector('input[name="bible"]:checked').value;
-  var b = document.getElementById('book').value;
-  var c = document.getElementById('chapter').value;
-  var v = parseInt(document.getElementById('verse').value);
+  b = document.getElementById('book').value;
+  c = document.getElementById('chapter').value;
+  v = parseInt(document.getElementById('verse').value);
   var r = document.getElementById('r').value;
   var s = document.querySelector('input[name="strongs"]:checked').value;
   var vtext = "";
@@ -37,13 +47,19 @@ function getresponse () {
   if(r === undefined || r < 1){
 		r = 1;
   }
+  var xmlDoc = "";
+  var XMLBook = biblePath + bible + "_by_book/" + b + ".xml";
+  if(b < 1 || b > 66){
+	document.all.responseArea.innerHTML += "<b><i>No such book " +b+ "</i></b>";
+	return;
+  } else {
+	xmlhttp.open("GET",XMLBook,false);
+	xmlhttp.send();
+	xmlDoc = xmlhttp.responseXML;
+  }
 
   // TODO: add code to select a version of the Bible based on user input
   // (only KJV and WEB versions are available with XML files)
-  var XMLBook = biblePath + bible + "_by_book/" + b + ".xml";
-  xmlhttp.open("GET",XMLBook,false);
-  xmlhttp.send();
-  xmlDoc = xmlhttp.responseXML;
 
   var bookInfo = "<h6>Book retrieved from file: " + XMLBook + "</h6>";
   document.all.headArea.innerHTML = "<h1><font color=blue>XML Bible Demo Output</font></h1>"
@@ -51,13 +67,17 @@ function getresponse () {
   try {
     document.all.responseArea.innerHTML = " ";
 	for(i=0; i < r; i++){
-		vtext += getVerse(b,c,v,s,i) + "<br>";
+		const result = getVerse(s,i,bible,biblePath,xmlDoc,r);
+		vtext += result.verseText + "<br>";
+		xmlDoc = result.updatedXMLDoc;
+		i = result.i;
+		r = result.r;
 	}
 	document.all.responseArea.innerHTML += "<p>" + vtext + "</p>";
   }
   catch(error) {
     if (error == "no chapter") {
-      document.all.responseArea.innerHTML += "<b><i>No such chapter " +c+ "</i></b>";
+		document.all.responseArea.innerHTML += "<b><i>No such chapter " +c+ "</i></b>";
     }      
     if (error == "no verse") {
         document.all.responseArea.innerHTML += "<b><i>No such verse " +v+ "</i></b>";
@@ -65,27 +85,101 @@ function getresponse () {
   } 
 } // end getResponse
 
-function getVerse(book,chapter,verse,s,i) {
+function getVerse(s,i,bible,biblePath,xmlDoc,r) {
+
   var verseOutput = xmlDoc.getElementsByTagName("book")[0].getAttribute("name"); 
-  var c = xmlDoc.getElementsByTagName("chapter")[chapter-1];
-  if (c==null)
+  var chap = xmlDoc.getElementsByTagName("chapter")[c-1];
+  var chapNum;
+  try {
+    //possible error
+	chapNum = chap.getAttribute("number");
+  } catch (e){
+    //if chap isn't a real chapter
 	throw "no chapter";
-  verseOutput += " ";
-  verseOutput += c.getAttribute("number"); 
-  var v = c.getElementsByTagName("verse")[verse-1+i];
-  if (v==null)
+  }
+  var verse = chap.getElementsByTagName("verse")[v-1+i];
+  //so far, everything is normal
+  
+  try {
+  if (verse==null && i > 0){
+    //if verse == null, move to the next chapter to see if its real
+	c = parseInt(c)+ 1;
+	chap = xmlDoc.getElementsByTagName("chapter")[c-1];
+	try {
+		//possible error
+		chapNum = chap.getAttribute("number");
+		
+		r = r - i;
+		i = 0;
+		verse = chap.getElementsByTagName("verse")[v-1+i];
+		
+		if (verse==null){
+			//if verse == null still and the chapter is real, the verse doesn't exist
+			throw "no verse";
+		} else {
+			//otherwise, append it
+			verseOutput += " ";
+			verseOutput += chapNum;
+		}
+	} catch (e){
+		//if the chap assignment failed, try to move to the next book
+		if(i > 0 && b < 66){
+			//only increment if this is not the first verse being returned, and its not book 66
+			//increase book by 1, and reset verse and chapter to 1
+			b = parseInt(b) + 1;
+			c = 1;
+			v = 1;
+			
+			//open the XML file for the next book
+			XMLBook = biblePath + bible + "_by_book/" + b + ".xml";
+			document.all.headArea.innerHTML += "<h6>Book retrieved from file: " 
+				+ XMLBook + "</h6>";
+			xmlDoc = loadXMLFile(XMLBook);
+			
+			verseOutput = xmlDoc.getElementsByTagName("book")[0].getAttribute("name");
+			chap = xmlDoc.getElementsByTagName("chapter")[c-1];
+			chapNum = chap.getAttribute("number");
+			
+			//resetting i to 0 and reducing r, because i is used to acquire subsequent verses
+			r = r - i;
+			i = 0;
+			verse = chap.getElementsByTagName("verse")[v-1+i];
+		} else {
+		//otherwise, the chapter doesn't exist
+		throw "no chapter";
+		}
+	}
+	
+  } else if (verse==null){
 	throw "no verse";
-  verseOutput += ":";
-  verseOutput += v.getAttribute("number");
+  } 
+  } catch (e) {
+  throw "no verse";
+}
+  
+  //nothing went wrong, continue with next verse as normal
+  //document.all.responseArea.innerHTML += "<b><i>Finishing verseOutput...</i></b>";
   verseOutput += " ";
-  for (j=0; j < v.childNodes.length; j++) {
-	var nodeStr = getNodeString(v.childNodes[j], s);
+  verseOutput += chapNum;
+  verseOutput += ":";
+  verseOutput += verse.getAttribute("number");
+  verseOutput += " ";
+  for (j=0; j < verse.childNodes.length; j++) {
+	var nodeStr = getNodeString(verse.childNodes[j],s,bible,biblePath);
 	verseOutput += nodeStr;
   }
-  return(verseOutput);
+  //document.all.responseArea.innerHTML += "<b><i>verseOutput complete. Returning</i></b>";
+  chap = null;
+  chapNum = null;
+  return {
+	verseText: verseOutput, //text of the verse
+	updatedXMLDoc: xmlDoc, //if a new XML file was opened, return this to edit the var
+	i: i,                  //i from the for loop and r, which is the number of verses to 
+	r: r                   //be returned. If we move to the next chapter or book, these need
+  };                       //updated as well
 } // end getVerse
 
-function getNodeString(node, s) {
+function getNodeString(node, s, bible, biblePath) {
 	var result = "";
 	if (node.nodeType == 3) { // type 3: text node
 		result += node.nodeValue;
@@ -118,33 +212,92 @@ function getNodeString(node, s) {
 		   
 		   if(s === "strongsy"){
 			   var nodesubstr = "";
+			   var numRef = "";
 			   
 			   if(node.hasAttribute("hebrew")){
-					nodesubstr += node.getAttribute('hebrew');
-					result += "<sub>" + nodesubstr + "</sub>";
+					if(bible === "kjv"){
+						nodesubstr += node.getAttribute('hebrew');
+						numRef = node.getAttribute('hebrew');
+						result += "<sub><a href='javascript:getHebrew(numRef);'>" + nodesubstr + "</a></sub> ";
+					} else {
+						nodesubstr += node.getAttribute('hebrew');
+						result += "<sub>" + nodesubstr + "</sub>";
+					}
 			   }
 			   else if(node.hasAttribute("greek")){
-					nodesubstr += node.getAttribute('greek');
-					result += "<sub>" + nodesubstr + "</sub>";
+					if(bible === "kjv"){
+						nodesubstr += node.getAttribute('greek');
+						result += "<sub>" + nodesubstr + "</sub> ";
+					} else {
+						nodesubstr += node.getAttribute('greek');
+						result += "<sub>" + nodesubstr + "</sub>";
+					}
 			   }
 			   else if(node.hasAttribute("number")){
-					nodesubstr += node.getAttribute('number');
-					result += "<sub>" + nodesubstr + "</sub>";
+					if(bible === "kjv"){
+						nodesubstr += node.getAttribute('number');
+						result += "<sub>" + nodesubstr + "</sub> ";
+					} else {
+						nodesubstr += node.getAttribute('number');
+						result += "<sub>" + nodesubstr + "</sub>";
+					}
 			   }
-		   }
-
-	   }
+		    } else {
+				if(node.hasAttribute("hebrew") || node.hasAttribute("greek") || node.hasAttribute("number")){
+					if(bible === "kjv"){
+						result += " ";
+					}
+				}
+		    }
+	    }
 	}
 	return(result);
 } // end getNodeString
+
+function getGreek(numRef, biblePath){
+	// numRef/100, rounded up - 1
+	var fileNum = Math.ceil((numRef/100)) - 1;
+	
+	var XMLstrongs = biblePath + "greek_strongs/grk" + fileNum + ".xml";
+	xmlhttp.open("GET",XMLstrongs,false);
+	xmlhttp.send();
+	xmlDocGreek = xmlhttp.responseXML;
+	
+	var ref = "";
+	ref = xmlDocGreek.getElementById('G' + numRef);
+	document.all.referenceArea.innerHTML = "";
+	document.all.referenceArea.innerHTML += "<p>" + ref + "</p>";
+}	
+
+function getHebrew(numRef){
+	// numRef/100, rounded up - 1
+	var fileNum = Math.ceil((numRef/100)) - 1;
+	
+	var XMLstrongs = "/class/csc3004/XMLBible/heb_strongs/heb" + fileNum + ".xml";
+	document.all.referenceArea.innerHTML = "<p>" + XMLstrongs + "</p>";
+	xmlhttp.open("GET",XMLstrongs,false);
+	xmlhttp.send();
+	xmlDocHebrew = xmlhttp.responseXML;
+	
+	var ref = "";
+	ref = xmlDocHebrew.getElementById('H' + numRef);
+	document.all.referenceArea.innerHTML += "<p>" + ref + "</p>";
+}
+
+function loadXMLFile(XMLName){
+	xmlhttp.open("GET",XMLName,false);
+	xmlhttp.send();
+	return xmlhttp.responseXML;
+}
+
 </script>
 </head>
 
 <body onLoad="setup()">
 <form onsubmit="return false"> <!-- submit button defines handler below:
                                     onclick="javascript: getresponse()" -->
-<h1>Bible Search from XML files</h1>
-<table>
+<h1 id="flexrow">Bible Search from XML files</h1>
+<table id="flexrow">
 <TR>
 <TD ALIGN=RIGHT VALIGN=TOP>Book Number</TD>
 <TD ALIGN=LEFT VALIGN=TOP><INPUT NAME="book" TYPE="text" MAXLENGTH=2  id=book></TD>
@@ -181,12 +334,14 @@ function getNodeString(node, s) {
 </TR>
 </table>
 <p>
-<input type="submit" onclick="javascript: getresponse()" name="submit" value="Submit" />
+<input type="submit" id="flexrow" onclick="javascript: getresponse()" name="submit" value="Submit" />
 </p>
 </form>
 <div id = "headArea">
 </div>
 <div id = "responseArea">
+</div>
+<div id = "referenceArea">
 </div>
 </body>
 </html>
