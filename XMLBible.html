@@ -215,31 +215,33 @@ function getNodeString(node, s, bible, biblePath) {
 			   var numRef = "";
 			   
 			   if(node.hasAttribute("hebrew")){
-					if(bible === "kjv"){
-						nodesubstr += node.getAttribute('hebrew');
-						numRef = node.getAttribute('hebrew');
-						result += "<sub><a href='javascript:getHebrew(numRef);'>" + nodesubstr + "</a></sub> ";
-					} else {
-						nodesubstr += node.getAttribute('hebrew');
-						result += "<sub>" + nodesubstr + "</sub>";
+			    
+					nodesubstr += node.getAttribute('hebrew');
+					numRef = node.getAttribute('hebrew');
+					numRef = numRef.replace(/^\*/, '');
+					var numArray = numRef.split(" ");//for when there are multiple references, split into array
+					
+					for(i = 0; i < numArray.length; i++){//loop if theres more than 1 reference
+						if(bible === "kjv"){
+							result += "<sub><a href='javascript:getHebrew(" + numArray[i] + ");'>" + numArray[i] + "</a></sub> ";
+						} else {
+							result += "<sub><a href='javascript:getHebrew(" + numArray[i] + ");'>" + numArray[i] + "</a></sub>";
+						}
 					}
 			   }
 			   else if(node.hasAttribute("greek")){
-					if(bible === "kjv"){
-						nodesubstr += node.getAttribute('greek');
-						result += "<sub>" + nodesubstr + "</sub> ";
-					} else {
-						nodesubstr += node.getAttribute('greek');
-						result += "<sub>" + nodesubstr + "</sub>";
-					}
-			   }
-			   else if(node.hasAttribute("number")){
-					if(bible === "kjv"){
-						nodesubstr += node.getAttribute('number');
-						result += "<sub>" + nodesubstr + "</sub> ";
-					} else {
-						nodesubstr += node.getAttribute('number');
-						result += "<sub>" + nodesubstr + "</sub>";
+			   
+					nodesubstr += node.getAttribute('greek');
+					numRef = node.getAttribute('greek');
+					numRef = numRef.replace(/^\*/, '');
+					var numArray = numRef.split(" "); //for when there are multiple references, split into array
+					
+					for(i = 0; i < numArray.length; i++){ //loop if theres more than 1 reference
+						if(bible === "kjv"){
+							result += "<sub><a href='javascript:getGreek(" + numArray[i] + ");'>" + numArray[i] + "</a></sub> ";
+						} else {
+							result += "<sub><a href='javascript:getGreek(" + numArray[i] + ");'>" + numArray[i] + "</a></sub>";
+						}
 					}
 			   }
 		    } else {
@@ -254,34 +256,122 @@ function getNodeString(node, s, bible, biblePath) {
 	return(result);
 } // end getNodeString
 
-function getGreek(numRef, biblePath){
+function getGreek(numRef){
+	
+	if(numRef[0] === "G"){ //cut off the letter so i can do math if this is an inner reference
+		numRef = numRef.replace('G', '');
+	}
+	
 	// numRef/100, rounded up - 1
 	var fileNum = Math.ceil((numRef/100)) - 1;
-	
-	var XMLstrongs = biblePath + "greek_strongs/grk" + fileNum + ".xml";
+		
+	var XMLstrongs = "/class/csc3004/XMLBible/greek_strongs/grk" + fileNum + ".xml";
+	xmlhttp = new XMLHttpRequest();
 	xmlhttp.open("GET",XMLstrongs,false);
 	xmlhttp.send();
-	xmlDocGreek = xmlhttp.responseXML;
+	var xmlDocGreek = xmlhttp.responseXML;
 	
 	var ref = "";
-	ref = xmlDocGreek.getElementById('G' + numRef);
-	document.all.referenceArea.innerHTML = "";
-	document.all.referenceArea.innerHTML += "<p>" + ref + "</p>";
+	var translit = "";
+	var pro = "";
+	var desc = "";
+	var link = "";
+	var sstring = "[id='G" + numRef + "']";//building string to find ID of the tag
+	
+	ref = xmlDocGreek.querySelector(sstring);
+	document.all.referenceArea.innerHTML = ""; //clear reference area
+	translit = ref.querySelector("transliteration").textContent;
+	pro = ref.querySelector("pronunciation").textContent;
+	desc = ref.querySelector("description").textContent;
+	
+	try{
+		link = ref.querySelector("link").textContent;
+	} catch(e) {
+		//document.all.referenceArea.innerHTML += "link: " + link;
+	}
+	//document.all.referenceArea.innerHTML += "<p>link:" + link + "</p>";
+	
+	if(link != null && link != ""){ //only if there is an inner link
+		var linkNode = ref.querySelector("description").getElementsByTagName("link")[0];//current link tag
+		var anchor = xmlDocGreek.createElement("a");  //new anchor tag
+		
+		linkNode.replaceWith(anchor); //replace link with anchor to make it clickable
+		//checking if the reference is Hebrew or Greek, and calling the appropriate function
+		if(link[0] === "H"){
+			anchor.setAttribute("href", "javascript:getHebrew('" + link + "');");
+		} else if(link[0] === "G"){
+			anchor.setAttribute("href", "javascript:getGreek('" + link + "');");
+		}
+		
+		anchor.textContent = linkNode.textContent;
+		desc = ref.querySelector("description").innerHTML;//reassign desc to new version with updated tags
+		
+		//document.all.referenceArea.innerHTML += "<p>anchor:" + ref.querySelector("description").getElementsByTagName("a")[0] + "</p>";
+	}
+	
+	document.all.referenceArea.innerHTML += "<p>Greek;</p>";
+	document.all.referenceArea.innerHTML += "<p>Transliteration: " + translit + "</p>";
+	document.all.referenceArea.innerHTML += "<p>Pronounciation: " + pro + "</p>";
+	document.all.referenceArea.innerHTML += "<p>" + desc + "</p>";
 }	
 
 function getHebrew(numRef){
+
+	if(numRef[0] === "H"){
+		numRef = numRef.replace('H', '');
+	}
+	
 	// numRef/100, rounded up - 1
 	var fileNum = Math.ceil((numRef/100)) - 1;
-	
+		
 	var XMLstrongs = "/class/csc3004/XMLBible/heb_strongs/heb" + fileNum + ".xml";
-	document.all.referenceArea.innerHTML = "<p>" + XMLstrongs + "</p>";
+	xmlhttp = new XMLHttpRequest();
 	xmlhttp.open("GET",XMLstrongs,false);
 	xmlhttp.send();
-	xmlDocHebrew = xmlhttp.responseXML;
+	var xmlDocHebrew = xmlhttp.responseXML;
+	//document.all.referenceArea.innerHTML = "<p>Doc opened</p>";
 	
 	var ref = "";
-	ref = xmlDocHebrew.getElementById('H' + numRef);
-	document.all.referenceArea.innerHTML += "<p>" + ref + "</p>";
+	var translit = "";
+	var pro = "";
+	var desc = "";
+	var link = "";
+	var sstring = "[id='H" + numRef + "']";
+	
+	ref = xmlDocHebrew.querySelector(sstring);
+	document.all.referenceArea.innerHTML = "";
+	translit = ref.querySelector("transliteration").textContent;
+	pro = ref.querySelector("pronunciation").textContent;
+	desc = ref.querySelector("description").textContent;
+	
+	try{
+		link = ref.querySelector("link").textContent;
+		//document.all.referenceArea.innerHTML += "<p>link:" + link + "</p>";
+	} catch (e){
+		//document.all.referenceArea.innerHTML += "<p>link:" + link + "</p>";
+	}
+	
+	if(link != null && link != ""){
+		var linkNode = ref.querySelector("description").getElementsByTagName("link")[0];
+		var anchor = xmlDocHebrew.createElement("a");
+		
+		linkNode.replaceWith(anchor);
+		if(link[0] === "H"){
+			anchor.setAttribute("href", "javascript:getHebrew('" + link + "');");
+		} else if(link[0] === "G"){
+			anchor.setAttribute("href", "javascript:getGreek('" + link + "');");
+		}
+		
+		anchor.textContent = linkNode.textContent;
+		desc = ref.querySelector("description").innerHTML;
+		
+		//document.all.referenceArea.innerHTML += "<p>anchor:" + ref.querySelector("description").getElementsByTagName("a")[0] + "</p>";
+	}
+	
+	document.all.referenceArea.innerHTML += "<p>Hebrew;</p>";
+	document.all.referenceArea.innerHTML += "<p>Transliteration: " + translit + "</p>";
+	document.all.referenceArea.innerHTML += "<p>Pronounciation: " + pro + "</p>";
+	document.all.referenceArea.innerHTML += "<p>" + desc + "</p>";
 }
 
 function loadXMLFile(XMLName){
